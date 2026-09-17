@@ -34,7 +34,6 @@
     background: var(--bg);
     color: var(--text);
     font-family: 'BIZ UDPGothic', 'Meiryo', 'Hiragino Sans', sans-serif;
-    padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     -webkit-tap-highlight-color: transparent;
   }
@@ -103,7 +102,7 @@
   </div>
 </header>
 
-<main class="max-w-xl mx-auto px-4 py-4 pb-14">
+<main id="mainContent" class="max-w-xl mx-auto px-4 py-4 pb-14">
 
   <!-- 未設定ガイド -->
   <div id="setupNotice" class="hidden rounded-2xl border p-5 text-sm leading-relaxed my-6" style="background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.25); color: #cfe0fb;">
@@ -641,6 +640,36 @@ document.getElementById('calTodayBtn').addEventListener('click', () => {
   selectedDate = today;
   renderCalendar();
 });
+
+/* 左右スワイプでリスト/カレンダーを切り替え */
+(() => {
+  const VIEWS = ['list', 'calendar'];
+  const mainContent = document.getElementById('mainContent');
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  mainContent.addEventListener('touchstart', (ev) => {
+    if (ev.touches.length !== 1) return;
+    touchStartX = ev.touches[0].clientX;
+    touchStartY = ev.touches[0].clientY;
+  }, { passive: true });
+
+  mainContent.addEventListener('touchend', (ev) => {
+    const touch = ev.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
+    const SWIPE_THRESHOLD = 60;
+
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+
+    const currentIndex = VIEWS.indexOf(currentView);
+    const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+    if (nextIndex >= 0 && nextIndex < VIEWS.length) {
+      setActiveView(VIEWS[nextIndex]);
+    }
+  }, { passive: true });
+})();
+
 setActiveView('list');
 
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
