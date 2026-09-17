@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>スプレッドシート・ビューア</title>
+<!-- 検索エンジンのインデックス除外(URLを知らない人が検索でヒットしないようにする) -->
+<meta name="robots" content="noindex, nofollow">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { height: 100%; }
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .clamp-4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .clamp-none { -webkit-line-clamp: unset; overflow: visible; }
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+<!-- ヘッダー -->
+<header class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200">
+  <div class="max-w-xl mx-auto px-4 pt-3 pb-2" style="padding-top:calc(0.75rem + env(safe-area-inset-top))">
+    <div class="flex items-center justify-between">
+      <h1 class="text-base font-bold text-slate-800">スプレッドシート・ビューア</h1>
+      <button id="openSettingsBtn" class="text-xs text-slate-500 hover:text-slate-800 p-1 border rounded-md">
+        設定
+      </button>
+    </div>
+    <div class="mt-2 relative">
+      <input
+        id="searchInput"
+        type="search"
+        inputmode="search"
+        placeholder="タイトル・本文・タグで検索"
+        class="w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-slate-400"
+      >
+    </div>
+  </div>
+</header>
+
+<main class="max-w-xl mx-auto px-4 py-4 pb-10">
+
+  <!-- 未設定ガイド -->
+  <div id="setupNotice" class="hidden rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900 leading-relaxed my-6">
+    <p class="font-bold mb-2 text-base">スプレッドシートの設定が必要です</p>
+    <p class="mb-3 text-blue-800">右上の「設定」から接続するスプレッドシートIDとシート名を入力してください。設定内容は端末のブラウザにのみ保存されます。</p>
+    <button id="guideSettingsBtn" class="rounded-full bg-blue-600 text-white text-xs font-semibold px-4 py-2">
+      設定を開く
+    </button>
+  </div>
+
+  <!-- 読み込み中 -->
+  <div id="loadingState" class="hidden flex flex-col items-center gap-3 py-16 text-slate-400">
+    <svg class="animate-spin h-7 w-7" viewBox="0 0 24 24" fill="none">
+      <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle>
+      <path class="opacity-80" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+    </svg>
+    <p class="text-sm">スプレッドシートを読み込み中…</p>
+  </div>
+
+  <!-- エラー -->
+  <div id="errorState" class="hidden">
+    <div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 leading-relaxed">
+      <p class="font-bold mb-1">読み込みに失敗しました</p>
+      <p id="errorMessage" class="mb-3"></p>
+      <ul class="list-disc pl-5 space-y-1 text-red-600/90 text-xs">
+        <li>スプレッドシートが「リンクを知っている全員が閲覧可」に設定されているか</li>
+        <li>設定画面のスプレッドシートID / シート名が正しいか</li>
+        <li>通信環境に問題がないか</li>
+      </ul>
+      <div class="mt-4 flex gap-2">
+        <button id="retryButton" class="rounded-full bg-red-600 text-white text-xs font-semibold px-4 py-2">
+          再読み込み
+        </button>
+        <button id="errorSettingsBtn" class="rounded-full border border-red-300 text-red-700 text-xs font-semibold px-4 py-2">
+          設定を見直す
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 該当なし -->
+  <div id="emptyState" class="hidden text-center text-slate-400 py-16 text-sm"></div>
+
+  <!-- カード一覧 -->
+  <div id="cardList" class="flex flex-col gap-3"></div>
+</main>
+
+<!-- 設定モーダル -->
+<div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
+  <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-xl">
+    <h2 class="text-base font-bold text-slate-800 mb-3">スプレッドシート接続設定</h2>
+    <div class="space-y-3 text-sm">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">スプレッドシート ID / またはURL</label>
+        <input id="inputSheetId" type="text" placeholder="URLまたは英数字のID" class="w-full border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-slate-400 outline-none">
+        <p class="text-[10px] text-slate-400 mt-0.5">※スプレッドシートのURLをそのまま貼っても自動抽出されます</p>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">シートタブ名</label>
+        <input id="inputSheetName" type="text" placeholder="diary" value="diary" class="w-full border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-slate-400 outline-none">
+      </div>
+    </div>
+    <div class="mt-5 flex justify-end gap-2">
+      <button id="cancelSettingsBtn" class="px-4 py-2 rounded-lg text-xs text-slate-500">キャンセル</button>
+      <button id="saveSettingsBtn" class="px-4 py-2 rounded-lg text-xs font-bold bg-slate-800 text-white">保存して読み込み</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'ss_viewer_config';
+
+function getConfig() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (!data) return null;
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveConfig(id, sheetName) {
+  // URL全体がペーストされた場合、ID部分を正規表現で抽出
+  const match = id.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  const cleanId = match ? match[1] : id.trim();
+
+  const config = {
+    sheetId: cleanId,
+    sheetName: (sheetName || 'diary').trim(),
+    columns: {
+      date: 'date',
+      title: 'title',
+      content: 'content',
+      tags: 'tags',
+    }
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  return config;
+}
+
+let allEntries = [];
+
+async function fetchSheetRows(config) {
+  const url =
+    `https://docs.google.com/spreadsheets/d/${encodeURIComponent(config.sheetId)}/gviz/tq` +
+    `?tqx=out:json&headers=1&sheet=${encodeURIComponent(config.sheetName)}`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} (シートの共有設定またはIDを確認してください)`);
+
+  const text = await res.text();
+  const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
+  if (!match) throw new Error('想定外の応答形式です (シートタブ名が正しいか確認してください)');
+
+  const json = JSON.parse(match[1]);
+  if (json.status === 'error') {
+    const msg = json.errors?.[0]?.detailed_message || 'シートの読み込みに失敗しました';
+    throw new Error(msg);
+  }
+
+  const cols = json.table.cols.map((c) => (c.label || '').trim().toLowerCase());
+  const headerIndex = {};
+  for (const [key, label] of Object.entries(config.columns)) {
+    const idx = cols.indexOf(label.trim().toLowerCase());
+    if (idx !== -1) headerIndex[key] = idx;
+  }
+
+  return (json.table.rows || []).map((row) => buildEntry(headerIndex, row));
+}
+
+function cellText(cell) {
+  if (!cell) return '';
+  return cell.f ?? (cell.v != null ? String(cell.v) : '');
+}
+
+function cellDate(cell) {
+  if (!cell) return null;
+  const raw = cell.v;
+  if (typeof raw === 'string') {
+    const m = raw.match(/^Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)$/);
+    if (m) {
+      const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+      const h = m[4] ? Number(m[4]) : 0;
+      const mi = m[5] ? Number(m[5]) : 0;
+      const s = m[6] ? Number(m[6]) : 0;
+      return new Date(y, mo, d, h, mi, s);
+    }
+  }
+  const parsed = new Date(cell.f ?? raw);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function buildEntry(headerIndex, row) {
+  const cell = (key) => (headerIndex[key] != null ? row.c[headerIndex[key]] : null);
+  const dateCell = cell('date');
+  return {
+    dateObj: cellDate(dateCell),
+    dateText: cellText(dateCell),
+    title: cellText(cell('title')),
+    content: cellText(cell('content')),
+    tags: cellText(cell('tags')).split(',').map((t) => t.trim()).filter(Boolean),
+  };
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function formatDateLabel(entry) {
+  if (entry.dateObj) {
+    const weekday = ['日', '月', '火', '水', '木', '金', '土'][entry.dateObj.getDay()];
+    return `${entry.dateObj.getFullYear()}年${entry.dateObj.getMonth() + 1}月${entry.dateObj.getDate()}日 (${weekday})`;
+  }
+  return entry.dateText || '(日付なし)';
+}
+
+function renderCards(entries) {
+  const list = document.getElementById('cardList');
+  const empty = document.getElementById('emptyState');
+
+  if (!entries.length) {
+    list.innerHTML = '';
+    empty.textContent = allEntries.length ? '一致する記録がありません' : 'データがありません';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  list.innerHTML = entries.map((e, i) => `
+    <article class="rounded-2xl bg-white shadow-sm border border-slate-200 p-4" data-index="${i}">
+      <div class="text-xs font-semibold text-slate-400 mb-1">${escapeHTML(formatDateLabel(e))}</div>
+      ${e.title ? `<h2 class="text-[15px] font-bold text-slate-800 mb-1">${escapeHTML(e.title)}</h2>` : ''}
+      <p class="clamp-4 text-[14px] leading-relaxed text-slate-600 whitespace-pre-wrap cursor-pointer" data-toggle>${escapeHTML(e.content)}</p>
+      ${e.tags.length ? `
+        <div class="flex flex-wrap gap-1.5 mt-2">
+          ${e.tags.map((t) => `<span class="text-[11px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">#${escapeHTML(t)}</span>`).join('')}
+        </div>` : ''}
+    </article>
+  `).join('');
+
+  list.querySelectorAll('[data-toggle]').forEach((p) => {
+    p.addEventListener('click', () => p.classList.toggle('clamp-none'));
+  });
+}
+
+function applySearch() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (!q) return renderCards(allEntries);
+  const terms = q.split(/\s+/).filter(Boolean);
+  const filtered = allEntries.filter((e) => {
+    const hay = `${e.title}\n${e.content}\n${e.tags.join(' ')}`.toLowerCase();
+    return terms.every((t) => hay.includes(t));
+  });
+  renderCards(filtered);
+}
+
+/* モーダル操作 */
+const modal = document.getElementById('settingsModal');
+function showModal() {
+  const config = getConfig();
+  if (config) {
+    document.getElementById('inputSheetId').value = config.sheetId || '';
+    document.getElementById('inputSheetName').value = config.sheetName || 'diary';
+  }
+  modal.classList.remove('hidden');
+}
+function hideModal() {
+  modal.classList.add('hidden');
+}
+
+/* 読み込み処理 */
+async function load() {
+  const config = getConfig();
+  if (!config || !config.sheetId) {
+    document.getElementById('setupNotice').classList.remove('hidden');
+    document.getElementById('loadingState').classList.add('hidden');
+    return;
+  }
+  document.getElementById('setupNotice').classList.add('hidden');
+  document.getElementById('loadingState').classList.remove('hidden');
+  document.getElementById('errorState').classList.add('hidden');
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('cardList').innerHTML = '';
+
+  try {
+    const rows = await fetchSheetRows(config);
+    rows.sort((a, b) => {
+      if (a.dateObj && b.dateObj) return b.dateObj - a.dateObj;
+      return String(b.dateText).localeCompare(String(a.dateText));
+    });
+    allEntries = rows;
+    document.getElementById('loadingState').classList.add('hidden');
+    applySearch();
+  } catch (err) {
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('errorMessage').textContent = err.message;
+    document.getElementById('errorState').classList.remove('hidden');
+  }
+}
+
+// イベントリスナー
+document.getElementById('searchInput').addEventListener('input', applySearch);
+document.getElementById('retryButton').addEventListener('click', load);
+document.getElementById('openSettingsBtn').addEventListener('click', showModal);
+document.getElementById('guideSettingsBtn').addEventListener('click', showModal);
+document.getElementById('errorSettingsBtn').addEventListener('click', showModal);
+document.getElementById('cancelSettingsBtn').addEventListener('click', hideModal);
+
+document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+  const idVal = document.getElementById('inputSheetId').value;
+  const nameVal = document.getElementById('inputSheetName').value;
+  if (!idVal.trim()) {
+    alert('スプレッドシートIDを入力してください');
+    return;
+  }
+  saveConfig(idVal, nameVal);
+  hideModal();
+  load();
+});
+
+// 初期実行
+load();
+</script>
+</body>
+</html>
