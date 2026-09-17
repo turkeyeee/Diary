@@ -170,13 +170,36 @@ async function fetchSheetRows(config) {
   }
 
   const cols = json.table.cols.map((c) => (c.label || '').trim().toLowerCase());
+  const headerIndex = resolveHeaderIndex(cols, config.columns);
+
+  return (json.table.rows || []).map((row) => buildEntry(headerIndex, row));
+}
+
+// 列名の表記ゆれ(日本語ヘッダーなど)を吸収するためのエイリアス
+const HEADER_ALIASES = {
+  date: ['日付', '日時', '年月日'],
+  title: ['タイトル', '件名', '題名'],
+  content: ['本文', '内容', 'メモ', '日記'],
+  tags: ['タグ', 'カテゴリ', 'カテゴリー'],
+};
+
+function resolveHeaderIndex(cols, columnsConfig) {
   const headerIndex = {};
-  for (const [key, label] of Object.entries(config.columns)) {
-    const idx = cols.indexOf(label.trim().toLowerCase());
+  for (const [key, label] of Object.entries(columnsConfig)) {
+    const candidates = [label, ...(HEADER_ALIASES[key] || [])].map((s) => s.trim().toLowerCase());
+    const idx = cols.findIndex((c) => candidates.includes(c));
     if (idx !== -1) headerIndex[key] = idx;
   }
 
-  return (json.table.rows || []).map((row) => buildEntry(headerIndex, row));
+  // ヘッダー名が一つも一致しない場合は、列の並び順(左から date, title, content, tags)とみなす
+  if (Object.keys(headerIndex).length === 0) {
+    const order = ['date', 'title', 'content', 'tags'];
+    order.forEach((key, idx) => {
+      if (idx < cols.length) headerIndex[key] = idx;
+    });
+  }
+
+  return headerIndex;
 }
 
 function cellText(cell) {
