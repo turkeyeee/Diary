@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   :root {
@@ -33,11 +33,12 @@
   body {
     background: var(--bg);
     color: var(--text);
+    font-family: 'BIZ UDPGothic', 'Meiryo', 'Hiragino Sans', sans-serif;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     -webkit-tap-highlight-color: transparent;
   }
-  .font-diary { font-family: 'Shippori Mincho', serif; }
+  .font-diary { font-family: 'BIZ UDPGothic', 'Meiryo', 'Hiragino Sans', sans-serif; }
   .clamp-4 {
     display: -webkit-box;
     -webkit-line-clamp: 4;
@@ -95,6 +96,10 @@
         </svg>
       </button>
     </div>
+    <div id="viewToggle" class="grid grid-cols-2 gap-1 p-1 rounded-full mt-3" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+      <button data-view="list" class="view-tab-btn text-xs font-bold py-1.5 rounded-full transition-colors">リスト</button>
+      <button data-view="calendar" class="view-tab-btn text-xs font-bold py-1.5 rounded-full transition-colors">カレンダー</button>
+    </div>
   </div>
 </header>
 
@@ -139,11 +144,36 @@
     </div>
   </div>
 
-  <!-- 該当なし -->
-  <div id="emptyState" class="hidden text-center py-16 text-sm" style="color: var(--text-faint2);"></div>
+  <!-- リスト表示 -->
+  <div id="listView">
+    <!-- 該当なし -->
+    <div id="emptyState" class="hidden text-center py-16 text-sm" style="color: var(--text-faint2);"></div>
 
-  <!-- カード一覧(月ごとにグルーピング) -->
-  <div id="cardList" class="flex flex-col gap-6"></div>
+    <!-- カード一覧(月ごとにグルーピング) -->
+    <div id="cardList" class="flex flex-col gap-6"></div>
+  </div>
+
+  <!-- カレンダー表示 -->
+  <div id="calendarView" class="hidden">
+    <div class="flex items-center gap-2 mb-3">
+      <button id="calPrevBtn" aria-label="前の月" class="flex items-center justify-center w-9 h-9 rounded-full border shrink-0" style="border-color: var(--border); color: var(--text-dim);">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div id="calMonthLabel" class="flex-1 text-center text-sm font-bold py-1.5 rounded-full" style="background: var(--bg-elevated); color: var(--text);"></div>
+      <button id="calNextBtn" aria-label="次の月" class="flex items-center justify-center w-9 h-9 rounded-full border shrink-0" style="border-color: var(--border); color: var(--text-dim);">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+      <button id="calTodayBtn" class="shrink-0 text-xs font-bold px-3 h-9 rounded-full" style="background: var(--accent-soft); color: var(--accent);">今日</button>
+    </div>
+
+    <div class="grid grid-cols-7 text-center text-[11px] font-bold mb-1.5" id="calWeekdays"></div>
+    <div class="grid grid-cols-7 gap-1" id="calGrid"></div>
+
+    <div class="mt-6">
+      <h3 id="calSelectedLabel" class="text-sm font-bold mb-3" style="color: var(--text);"></h3>
+      <div id="calSelectedEntries" class="flex flex-col gap-3"></div>
+    </div>
+  </div>
 </main>
 
 <!-- 設定モーダル -->
@@ -392,6 +422,135 @@ function renderCards(entries) {
   });
 }
 
+/* カレンダー表示 */
+let currentView = 'list';
+let calendarViewDate = new Date();
+let selectedDate = new Date();
+
+function ymd(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function getEntriesByDate() {
+  const map = new Map();
+  for (const e of allEntries) {
+    if (!e.dateObj) continue;
+    const key = ymd(e.dateObj);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(e);
+  }
+  return map;
+}
+
+function setActiveView(view) {
+  currentView = view;
+  document.querySelectorAll('.view-tab-btn').forEach((btn) => {
+    const active = btn.dataset.view === view;
+    btn.style.background = active ? 'var(--accent)' : 'transparent';
+    btn.style.color = active ? '#1a1206' : 'var(--text-dim)';
+  });
+  document.getElementById('listView').classList.toggle('hidden', view !== 'list');
+  document.getElementById('calendarView').classList.toggle('hidden', view !== 'calendar');
+  if (view === 'calendar') renderCalendar();
+}
+
+function buildCalendarCells(year, month) {
+  const startWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const cells = [];
+
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    cells.push({ date: new Date(year, month - 1, daysInPrevMonth - i), current: false });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ date: new Date(year, month, d), current: true });
+  }
+  let nextDay = 1;
+  while (cells.length % 7 !== 0) {
+    cells.push({ date: new Date(year, month + 1, nextDay++), current: false });
+  }
+  return cells;
+}
+
+function renderCalendar() {
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  document.getElementById('calMonthLabel').textContent = `${year}年${month + 1}月`;
+
+  const weekdaysEl = document.getElementById('calWeekdays');
+  weekdaysEl.innerHTML = WEEKDAYS.map((w, i) => {
+    const color = i === 0 ? '#f87171' : i === 6 ? '#60a5fa' : 'var(--text-faint2)';
+    return `<div style="color: ${color};">${w}</div>`;
+  }).join('');
+
+  const entriesByDate = getEntriesByDate();
+  const today = new Date();
+  const cells = buildCalendarCells(year, month);
+
+  const gridEl = document.getElementById('calGrid');
+  gridEl.innerHTML = cells.map(({ date, current }) => {
+    const key = ymd(date);
+    const hasEntries = entriesByDate.has(key);
+    const isSelected = isSameDay(date, selectedDate);
+    const isToday = isSameDay(date, today);
+    const weekday = date.getDay();
+    let color = current ? 'var(--text)' : 'var(--text-faint2)';
+    if (current && weekday === 0) color = '#f87171';
+    if (current && weekday === 6) color = '#60a5fa';
+    const border = isSelected ? `border: 1.5px solid var(--accent);` : 'border: 1.5px solid transparent;';
+    const bg = isToday && !isSelected ? 'background: var(--accent-soft);' : '';
+    const opacity = current ? '1' : '0.35';
+    return `
+      <button class="cal-day-btn flex flex-col items-center justify-center gap-0.5 rounded-xl aspect-square" data-date="${key}" ${current ? '' : 'disabled'}
+        style="${border} ${bg} color: ${color}; opacity: ${opacity};">
+        <span class="text-[13px] font-semibold">${date.getDate()}</span>
+        <span class="w-1 h-1 rounded-full" style="background: ${hasEntries ? 'var(--accent)' : 'transparent'};"></span>
+      </button>
+    `;
+  }).join('');
+
+  gridEl.querySelectorAll('.cal-day-btn:not([disabled])').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [y, m, d] = btn.dataset.date.split('-').map(Number);
+      selectedDate = new Date(y, m - 1, d);
+      renderCalendar();
+    });
+  });
+
+  renderSelectedDateEntries(entriesByDate);
+}
+
+function renderSelectedDateEntries(entriesByDate) {
+  const label = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 (${WEEKDAYS[selectedDate.getDay()]})`;
+  document.getElementById('calSelectedLabel').textContent = label;
+
+  const entries = entriesByDate.get(ymd(selectedDate)) || [];
+  const container = document.getElementById('calSelectedEntries');
+  if (!entries.length) {
+    container.innerHTML = `<p class="text-sm text-center py-10" style="color: var(--text-faint2);">該当日の日記はまだありません。</p>`;
+    return;
+  }
+  container.innerHTML = entries.map((e) => entryCardHTML(e)).join('');
+
+  container.querySelectorAll('.entry-content').forEach((p) => {
+    const btn = p.parentElement.querySelector('[data-toggle-btn]');
+    const isTruncated = p.scrollHeight > p.clientHeight + 1;
+    if (isTruncated) btn.classList.remove('hidden');
+    const toggle = () => {
+      const expanded = p.classList.toggle('clamp-none');
+      btn.textContent = expanded ? '閉じる' : '続きを読む';
+      if (!expanded && !isTruncated) btn.classList.add('hidden');
+    };
+    p.addEventListener('click', toggle);
+    btn.addEventListener('click', toggle);
+  });
+}
+
 function applySearch() {
   const searchInput = document.getElementById('searchInput');
   const q = searchInput.value.trim().toLowerCase();
@@ -443,6 +602,7 @@ async function load() {
     allEntries = rows;
     document.getElementById('loadingState').classList.add('hidden');
     applySearch();
+    renderCalendar();
   } catch (err) {
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('errorMessage').textContent = err.message;
@@ -463,6 +623,25 @@ document.getElementById('openSettingsBtn').addEventListener('click', showModal);
 document.getElementById('guideSettingsBtn').addEventListener('click', showModal);
 document.getElementById('errorSettingsBtn').addEventListener('click', showModal);
 document.getElementById('cancelSettingsBtn').addEventListener('click', hideModal);
+
+document.querySelectorAll('.view-tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => setActiveView(btn.dataset.view));
+});
+document.getElementById('calPrevBtn').addEventListener('click', () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
+  renderCalendar();
+});
+document.getElementById('calNextBtn').addEventListener('click', () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
+  renderCalendar();
+});
+document.getElementById('calTodayBtn').addEventListener('click', () => {
+  const today = new Date();
+  calendarViewDate = new Date(today.getFullYear(), today.getMonth(), 1);
+  selectedDate = today;
+  renderCalendar();
+});
+setActiveView('list');
 
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   const idVal = document.getElementById('inputSheetId').value;
