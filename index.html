@@ -3,17 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>スプレッドシート・ビューア</title>
+<title>日記 - スプレッドシート・ビューア</title>
 <!-- 検索エンジンのインデックス除外(URLを知らない人が検索でヒットしないようにする) -->
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0e13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  html, body { height: 100%; }
+  :root {
+    --bg: #0b0e13;
+    --bg-elevated: #12161d;
+    --card: #161b23;
+    --card-hover: #1a2029;
+    --border: #262d38;
+    --border-soft: #1c222b;
+    --text: #eae7e1;
+    --text-dim: #949eac;
+    --text-faint2: #5c6672;
+    --accent: #d7a25f;
+    --accent-soft: rgba(215, 162, 95, 0.14);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; width: 100%; margin: 0; padding: 0; overflow-x: hidden; }
   body {
+    background: var(--bg);
+    color: var(--text);
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     -webkit-tap-highlight-color: transparent;
   }
+  .font-diary { font-family: 'Shippori Mincho', serif; }
   .clamp-4 {
     display: -webkit-box;
     -webkit-line-clamp: 4;
@@ -22,66 +46,93 @@
   }
   .clamp-none { -webkit-line-clamp: unset; overflow: visible; }
   ::-webkit-scrollbar { display: none; }
+  input[type="text"], input[type="search"] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input::-webkit-search-decoration,
+  input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    display: none;
+  }
 </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen">
+<body class="min-h-screen">
 
 <!-- ヘッダー -->
-<header class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200">
-  <div class="max-w-xl mx-auto px-4 pt-3 pb-2" style="padding-top:calc(0.75rem + env(safe-area-inset-top))">
-    <div class="flex items-center justify-between">
-      <h1 class="text-base font-bold text-slate-800">スプレッドシート・ビューア</h1>
-      <button id="openSettingsBtn" class="text-xs text-slate-500 hover:text-slate-800 p-1 border rounded-md">
-        設定
+<header class="sticky top-0 z-10 border-b" style="background: rgba(11,14,19,0.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-color: var(--border-soft);">
+  <div class="max-w-xl mx-auto px-4 pt-3 pb-3" style="padding-top:calc(0.75rem + env(safe-area-inset-top))">
+    <div class="flex items-center justify-between mb-3">
+      <h1 class="font-diary text-lg font-bold tracking-wide" style="color: var(--text);">日記</h1>
+      <button id="openSettingsBtn" aria-label="設定" class="flex items-center justify-center w-9 h-9 rounded-full border transition-colors" style="border-color: var(--border); color: var(--text-dim);">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
       </button>
     </div>
-    <div class="mt-2 relative">
+    <div class="relative">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-faint2);">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
       <input
         id="searchInput"
-        type="search"
+        type="text"
         inputmode="search"
+        enterkeyhint="search"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
         placeholder="タイトル・本文・タグで検索"
-        class="w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-slate-400"
+        class="w-full rounded-full pl-10 pr-9 py-2.5 text-[15px] border focus:outline-none focus:ring-2"
+        style="background: var(--bg-elevated); border-color: var(--border); color: var(--text);"
       >
+      <button id="clearSearchBtn" aria-label="検索をクリア" class="hidden absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 items-center justify-center rounded-full" style="color: var(--text-faint2);">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
     </div>
   </div>
 </header>
 
-<main class="max-w-xl mx-auto px-4 py-4 pb-10">
+<main class="max-w-xl mx-auto px-4 py-4 pb-14">
 
   <!-- 未設定ガイド -->
-  <div id="setupNotice" class="hidden rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900 leading-relaxed my-6">
-    <p class="font-bold mb-2 text-base">スプレッドシートの設定が必要です</p>
-    <p class="mb-3 text-blue-800">右上の「設定」から接続するスプレッドシートIDとシート名を入力してください。設定内容は端末のブラウザにのみ保存されます。</p>
-    <button id="guideSettingsBtn" class="rounded-full bg-blue-600 text-white text-xs font-semibold px-4 py-2">
+  <div id="setupNotice" class="hidden rounded-2xl border p-5 text-sm leading-relaxed my-6" style="background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.25); color: #cfe0fb;">
+    <p class="font-bold mb-2 text-base" style="color: var(--text);">スプレッドシートの設定が必要です</p>
+    <p class="mb-3" style="color: #a9c3ef;">右上の「設定」から接続するスプレッドシートIDとシート名を入力してください。設定内容は端末のブラウザにのみ保存されます。</p>
+    <button id="guideSettingsBtn" class="rounded-full text-white text-xs font-semibold px-4 py-2" style="background:#3b82f6;">
       設定を開く
     </button>
   </div>
 
   <!-- 読み込み中 -->
-  <div id="loadingState" class="hidden flex flex-col items-center gap-3 py-16 text-slate-400">
+  <div id="loadingState" class="hidden flex flex-col items-center gap-3 py-16" style="color: var(--text-faint2);">
     <svg class="animate-spin h-7 w-7" viewBox="0 0 24 24" fill="none">
       <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle>
       <path class="opacity-80" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
     </svg>
-    <p class="text-sm">スプレッドシートを読み込み中…</p>
+    <p class="text-sm">読み込み中…</p>
   </div>
 
   <!-- エラー -->
   <div id="errorState" class="hidden">
-    <div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 leading-relaxed">
-      <p class="font-bold mb-1">読み込みに失敗しました</p>
+    <div class="rounded-2xl border p-4 text-sm leading-relaxed" style="background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.25); color: #fecaca;">
+      <p class="font-bold mb-1" style="color: var(--text);">読み込みに失敗しました</p>
       <p id="errorMessage" class="mb-3"></p>
-      <ul class="list-disc pl-5 space-y-1 text-red-600/90 text-xs">
+      <ul class="list-disc pl-5 space-y-1 text-xs" style="color: #f3a8a8;">
         <li>スプレッドシートが「リンクを知っている全員が閲覧可」に設定されているか</li>
         <li>設定画面のスプレッドシートID / シート名が正しいか</li>
         <li>通信環境に問題がないか</li>
       </ul>
       <div class="mt-4 flex gap-2">
-        <button id="retryButton" class="rounded-full bg-red-600 text-white text-xs font-semibold px-4 py-2">
+        <button id="retryButton" class="rounded-full text-white text-xs font-semibold px-4 py-2" style="background:#dc2626;">
           再読み込み
         </button>
-        <button id="errorSettingsBtn" class="rounded-full border border-red-300 text-red-700 text-xs font-semibold px-4 py-2">
+        <button id="errorSettingsBtn" class="rounded-full border text-xs font-semibold px-4 py-2" style="border-color: rgba(248,113,113,0.4); color:#fca5a5;">
           設定を見直す
         </button>
       </div>
@@ -89,30 +140,30 @@
   </div>
 
   <!-- 該当なし -->
-  <div id="emptyState" class="hidden text-center text-slate-400 py-16 text-sm"></div>
+  <div id="emptyState" class="hidden text-center py-16 text-sm" style="color: var(--text-faint2);"></div>
 
-  <!-- カード一覧 -->
-  <div id="cardList" class="flex flex-col gap-3"></div>
+  <!-- カード一覧(月ごとにグルーピング) -->
+  <div id="cardList" class="flex flex-col gap-6"></div>
 </main>
 
 <!-- 設定モーダル -->
-<div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
-  <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-xl">
-    <h2 class="text-base font-bold text-slate-800 mb-3">スプレッドシート接続設定</h2>
+<div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background: rgba(0,0,0,0.6);">
+  <div class="w-full max-w-sm rounded-2xl p-5 shadow-xl border" style="background: var(--card); border-color: var(--border);">
+    <h2 class="text-base font-bold mb-3" style="color: var(--text);">スプレッドシート接続設定</h2>
     <div class="space-y-3 text-sm">
       <div>
-        <label class="block text-xs font-semibold text-slate-500 mb-1">スプレッドシート ID / またはURL</label>
-        <input id="inputSheetId" type="text" placeholder="URLまたは英数字のID" class="w-full border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-slate-400 outline-none">
-        <p class="text-[10px] text-slate-400 mt-0.5">※スプレッドシートのURLをそのまま貼っても自動抽出されます</p>
+        <label class="block text-xs font-semibold mb-1" style="color: var(--text-dim);">スプレッドシート ID / またはURL</label>
+        <input id="inputSheetId" type="text" placeholder="URLまたは英数字のID" class="w-full rounded-lg px-3 py-2 text-xs border focus:ring-2 outline-none" style="background: var(--bg-elevated); border-color: var(--border); color: var(--text);">
+        <p class="text-[10px] mt-0.5" style="color: var(--text-faint2);">※スプレッドシートのURLをそのまま貼っても自動抽出されます</p>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-500 mb-1">シートタブ名</label>
-        <input id="inputSheetName" type="text" placeholder="diary" value="diary" class="w-full border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-slate-400 outline-none">
+        <label class="block text-xs font-semibold mb-1" style="color: var(--text-dim);">シートタブ名</label>
+        <input id="inputSheetName" type="text" placeholder="diary" value="diary" class="w-full rounded-lg px-3 py-2 text-xs border focus:ring-2 outline-none" style="background: var(--bg-elevated); border-color: var(--border); color: var(--text);">
       </div>
     </div>
     <div class="mt-5 flex justify-end gap-2">
-      <button id="cancelSettingsBtn" class="px-4 py-2 rounded-lg text-xs text-slate-500">キャンセル</button>
-      <button id="saveSettingsBtn" class="px-4 py-2 rounded-lg text-xs font-bold bg-slate-800 text-white">保存して読み込み</button>
+      <button id="cancelSettingsBtn" class="px-4 py-2 rounded-lg text-xs" style="color: var(--text-dim);">キャンセル</button>
+      <button id="saveSettingsBtn" class="px-4 py-2 rounded-lg text-xs font-bold" style="background: var(--accent); color: #1a1206;">保存して読み込み</button>
     </div>
   </div>
 </div>
@@ -240,12 +291,56 @@ function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
 function formatDateLabel(entry) {
   if (entry.dateObj) {
-    const weekday = ['日', '月', '火', '水', '木', '金', '土'][entry.dateObj.getDay()];
-    return `${entry.dateObj.getFullYear()}年${entry.dateObj.getMonth() + 1}月${entry.dateObj.getDate()}日 (${weekday})`;
+    return `${entry.dateObj.getDate()}日 (${WEEKDAYS[entry.dateObj.getDay()]})`;
   }
-  return entry.dateText || '(日付なし)';
+  return entry.dateText || '日付なし';
+}
+
+function monthKey(entry) {
+  if (entry.dateObj) {
+    return `${entry.dateObj.getFullYear()}-${String(entry.dateObj.getMonth() + 1).padStart(2, '0')}`;
+  }
+  return 'その他';
+}
+
+function monthLabel(key, entry) {
+  if (entry.dateObj) {
+    return `${entry.dateObj.getFullYear()}年 ${entry.dateObj.getMonth() + 1}月`;
+  }
+  return '日付未設定';
+}
+
+function groupByMonth(entries) {
+  const groups = [];
+  let current = null;
+  for (const e of entries) {
+    const key = monthKey(e);
+    if (!current || current.key !== key) {
+      current = { key, label: monthLabel(key, e), items: [] };
+      groups.push(current);
+    }
+    current.items.push(e);
+  }
+  return groups;
+}
+
+function entryCardHTML(e, tagFilterHandler) {
+  return `
+    <article class="rounded-2xl p-4 border transition-colors" style="background: var(--card); border-color: var(--border);">
+      <time class="text-xs font-semibold tracking-wide" style="color: var(--accent);">${escapeHTML(formatDateLabel(e))}</time>
+      ${e.title ? `<h2 class="font-diary text-[16px] font-bold mt-1 mb-1.5 leading-snug" style="color: var(--text);">${escapeHTML(e.title)}</h2>` : '<div class="mt-1"></div>'}
+      <p class="entry-content clamp-4 font-diary text-[15px] leading-[1.85] whitespace-pre-wrap cursor-pointer" data-toggle style="color: var(--text-dim);">${escapeHTML(e.content)}</p>
+      <button class="hidden mt-1.5 text-xs font-semibold" data-toggle-btn style="color: var(--accent);">続きを読む</button>
+      ${e.tags.length ? `
+        <div class="flex flex-wrap gap-1.5 mt-3">
+          ${e.tags.map((t) => `<button class="text-[11px] rounded-full px-2.5 py-1 tag-btn" data-tag="${escapeHTML(t)}" style="background: var(--accent-soft); color: var(--accent);">#${escapeHTML(t)}</button>`).join('')}
+        </div>` : ''}
+    </article>
+  `;
 }
 
 function renderCards(entries) {
@@ -260,25 +355,48 @@ function renderCards(entries) {
   }
   empty.classList.add('hidden');
 
-  list.innerHTML = entries.map((e, i) => `
-    <article class="rounded-2xl bg-white shadow-sm border border-slate-200 p-4" data-index="${i}">
-      <div class="text-xs font-semibold text-slate-400 mb-1">${escapeHTML(formatDateLabel(e))}</div>
-      ${e.title ? `<h2 class="text-[15px] font-bold text-slate-800 mb-1">${escapeHTML(e.title)}</h2>` : ''}
-      <p class="clamp-4 text-[14px] leading-relaxed text-slate-600 whitespace-pre-wrap cursor-pointer" data-toggle>${escapeHTML(e.content)}</p>
-      ${e.tags.length ? `
-        <div class="flex flex-wrap gap-1.5 mt-2">
-          ${e.tags.map((t) => `<span class="text-[11px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">#${escapeHTML(t)}</span>`).join('')}
-        </div>` : ''}
-    </article>
+  const groups = groupByMonth(entries);
+
+  list.innerHTML = groups.map((g) => `
+    <section>
+      <h3 class="text-xs font-bold tracking-widest mb-2 px-1" style="color: var(--text-faint2);">${escapeHTML(g.label)}</h3>
+      <div class="flex flex-col gap-3">
+        ${g.items.map((e) => entryCardHTML(e)).join('')}
+      </div>
+    </section>
   `).join('');
 
-  list.querySelectorAll('[data-toggle]').forEach((p) => {
-    p.addEventListener('click', () => p.classList.toggle('clamp-none'));
+  // クランプされた本文にのみ「続きを読む」を表示する
+  list.querySelectorAll('.entry-content').forEach((p) => {
+    const btn = p.parentElement.querySelector('[data-toggle-btn]');
+    const isTruncated = p.scrollHeight > p.clientHeight + 1;
+    if (isTruncated) btn.classList.remove('hidden');
+
+    const toggle = () => {
+      const expanded = p.classList.toggle('clamp-none');
+      btn.textContent = expanded ? '閉じる' : '続きを読む';
+      if (!expanded && !isTruncated) btn.classList.add('hidden');
+    };
+    p.addEventListener('click', toggle);
+    btn.addEventListener('click', toggle);
+  });
+
+  // タグをタップして検索欄に反映
+  list.querySelectorAll('.tag-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const searchInput = document.getElementById('searchInput');
+      searchInput.value = btn.dataset.tag;
+      applySearch();
+      searchInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   });
 }
 
 function applySearch() {
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const searchInput = document.getElementById('searchInput');
+  const q = searchInput.value.trim().toLowerCase();
+  document.getElementById('clearSearchBtn').classList.toggle('hidden', !q);
+  document.getElementById('clearSearchBtn').classList.toggle('flex', !!q);
   if (!q) return renderCards(allEntries);
   const terms = q.split(/\s+/).filter(Boolean);
   const filtered = allEntries.filter((e) => {
@@ -334,6 +452,12 @@ async function load() {
 
 // イベントリスナー
 document.getElementById('searchInput').addEventListener('input', applySearch);
+document.getElementById('clearSearchBtn').addEventListener('click', () => {
+  const searchInput = document.getElementById('searchInput');
+  searchInput.value = '';
+  applySearch();
+  searchInput.focus();
+});
 document.getElementById('retryButton').addEventListener('click', load);
 document.getElementById('openSettingsBtn').addEventListener('click', showModal);
 document.getElementById('guideSettingsBtn').addEventListener('click', showModal);
