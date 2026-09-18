@@ -146,6 +146,9 @@
 
   <!-- リスト表示 -->
   <div id="listView">
+    <!-- 過去の今日 -->
+    <div id="onThisDayCard" class="hidden mb-4"></div>
+
     <!-- 該当なし -->
     <div id="emptyState" class="hidden text-center py-16 text-sm" style="color: var(--text-faint2);"></div>
 
@@ -180,6 +183,11 @@
     <div class="grid grid-cols-2 gap-3 mb-6" id="statTiles"></div>
 
     <section class="rounded-2xl p-4 border mb-4" style="background: var(--card); border-color: var(--border);">
+      <h3 class="text-xs font-bold tracking-widest mb-3" style="color: var(--text-faint2);">執筆ヒートマップ</h3>
+      <div id="heatmapGrid"></div>
+    </section>
+
+    <section class="rounded-2xl p-4 border mb-4" style="background: var(--card); border-color: var(--border);">
       <h3 class="text-xs font-bold tracking-widest mb-3" style="color: var(--text-faint2);">月ごとの記録数</h3>
       <div id="monthlyChart" class="flex items-end gap-1.5"></div>
     </section>
@@ -189,9 +197,44 @@
       <div id="weekdayChart" class="flex flex-col gap-2"></div>
     </section>
 
-    <section class="rounded-2xl p-4 border" style="background: var(--card); border-color: var(--border);">
+    <section class="rounded-2xl p-4 border mb-4" style="background: var(--card); border-color: var(--border);">
+      <h3 class="text-xs font-bold tracking-widest mb-3" style="color: var(--text-faint2);">文字数・執筆ペースの推移</h3>
+      <div id="lengthChart"></div>
+      <div class="flex justify-between text-[10px] mt-1 chart-range-label" style="color: var(--text-faint2);"></div>
+      <div class="mt-4 pt-3 border-t" style="border-color: var(--border);">
+        <div class="text-[11px] font-semibold mb-2" style="color: var(--text-faint2);">熱量が高かった日 (文字数が多い記録)</div>
+        <div id="topLengthList" class="flex flex-col"></div>
+      </div>
+    </section>
+
+    <section class="rounded-2xl p-4 border mb-4" style="background: var(--card); border-color: var(--border);">
+      <h3 class="text-xs font-bold tracking-widest mb-1" style="color: var(--text-faint2);">感情バイオリズム</h3>
+      <p class="text-[10px] mb-2" style="color: var(--text-faint2);">簡易的な単語辞書によるおおまかな推定です</p>
+      <div id="sentimentChart"></div>
+      <div class="flex justify-between text-[10px] mt-1 chart-range-label" style="color: var(--text-faint2);"></div>
+    </section>
+
+    <section class="rounded-2xl p-4 border mb-4" style="background: var(--card); border-color: var(--border);">
       <h3 class="text-xs font-bold tracking-widest mb-3" style="color: var(--text-faint2);">よく使うタグ</h3>
       <div id="tagRanking" class="flex flex-col gap-2"></div>
+    </section>
+
+    <section class="rounded-2xl p-4 border mb-4" style="background: var(--card); border-color: var(--border);">
+      <h3 class="text-xs font-bold tracking-widest mb-3" style="color: var(--text-faint2);">頻出キーワード</h3>
+      <div class="text-[11px] font-semibold mb-2" style="color: var(--text-faint2);">今月</div>
+      <div id="keywordRankingMonth" class="flex flex-col gap-2 mb-4"></div>
+      <div class="text-[11px] font-semibold mb-2" style="color: var(--text-faint2);">全期間</div>
+      <div id="keywordRankingAll" class="flex flex-col gap-2"></div>
+    </section>
+
+    <section class="rounded-2xl p-4 border" style="background: var(--card); border-color: var(--border);">
+      <h3 class="text-xs font-bold tracking-widest mb-3" style="color: var(--text-faint2);">口癖・特定語句チェック</h3>
+      <div id="phraseRanking" class="flex flex-col gap-2 mb-3"></div>
+      <div class="flex gap-2 pt-3 border-t" style="border-color: var(--border);">
+        <input id="phraseSearchInput" type="text" placeholder="調べたい語句を入力" class="flex-1 rounded-lg px-3 py-2 text-xs border focus:ring-2 outline-none" style="background: var(--bg-elevated); border-color: var(--border); color: var(--text);">
+        <button id="phraseSearchBtn" class="shrink-0 px-3 rounded-lg text-xs font-bold" style="background: var(--accent); color: #1a1206;">検索</button>
+      </div>
+      <p id="phraseSearchResult" class="text-xs mt-2" style="color: var(--text-dim);"></p>
     </section>
   </div>
 </main>
@@ -378,7 +421,21 @@ function groupByMonth(entries) {
   return groups;
 }
 
-function entryCardHTML(e, tagFilterHandler) {
+function findRelatedEntries(entry) {
+  if (!entry.tags.length) return [];
+  const tagSet = new Set(entry.tags);
+  return allEntries
+    .filter((o) => o !== entry && o.dateObj && o.tags.some((t) => tagSet.has(t)))
+    .slice(0, 3);
+}
+
+function relatedEntryChipHTML(e) {
+  const label = `${e.dateObj.getMonth() + 1}/${e.dateObj.getDate()} ${e.title || e.content.slice(0, 10)}`;
+  return `<button class="related-entry-btn text-[11px] rounded-full px-2.5 py-1 border truncate" data-date="${ymd(e.dateObj)}" style="max-width: 160px; background: var(--bg-elevated); color: var(--text-dim); border-color: var(--border);">${escapeHTML(label)}</button>`;
+}
+
+function entryCardHTML(e) {
+  const related = findRelatedEntries(e);
   return `
     <article class="rounded-2xl p-4 border transition-colors" style="background: var(--card); border-color: var(--border);">
       <time class="text-xs font-semibold tracking-wide" style="color: var(--accent);">${escapeHTML(formatDateLabel(e))}</time>
@@ -389,8 +446,50 @@ function entryCardHTML(e, tagFilterHandler) {
         <div class="flex flex-wrap gap-1.5 mt-3">
           ${e.tags.map((t) => `<button class="text-[11px] rounded-full px-2.5 py-1 tag-btn" data-tag="${escapeHTML(t)}" style="background: var(--accent-soft); color: var(--accent);">#${escapeHTML(t)}</button>`).join('')}
         </div>` : ''}
+      ${related.length ? `
+        <div class="mt-3 pt-3 border-t" style="border-color: var(--border);">
+          <div class="text-[11px] font-semibold mb-1.5" style="color: var(--text-faint2);">関連する日記</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${related.map((r) => relatedEntryChipHTML(r)).join('')}
+          </div>
+        </div>` : ''}
     </article>
   `;
+}
+
+// エントリーカード内の「続きを読む」「タグ」「関連する日記」の操作をまとめて配線する
+function wireEntryInteractions(root) {
+  root.querySelectorAll('.entry-content').forEach((p) => {
+    const btn = p.parentElement.querySelector('[data-toggle-btn]');
+    const isTruncated = p.scrollHeight > p.clientHeight + 1;
+    if (isTruncated) btn.classList.remove('hidden');
+
+    const toggle = () => {
+      const expanded = p.classList.toggle('clamp-none');
+      btn.textContent = expanded ? '閉じる' : '続きを読む';
+      if (!expanded && !isTruncated) btn.classList.add('hidden');
+    };
+    p.addEventListener('click', toggle);
+    btn.addEventListener('click', toggle);
+  });
+
+  root.querySelectorAll('.tag-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setActiveView('list');
+      const searchInput = document.getElementById('searchInput');
+      searchInput.value = btn.dataset.tag;
+      applySearch();
+      searchInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  root.querySelectorAll('.related-entry-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectedDate = parseYMD(btn.dataset.date);
+      calendarViewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      setActiveView('calendar');
+    });
+  });
 }
 
 function renderCards(entries) {
@@ -416,30 +515,7 @@ function renderCards(entries) {
     </section>
   `).join('');
 
-  // クランプされた本文にのみ「続きを読む」を表示する
-  list.querySelectorAll('.entry-content').forEach((p) => {
-    const btn = p.parentElement.querySelector('[data-toggle-btn]');
-    const isTruncated = p.scrollHeight > p.clientHeight + 1;
-    if (isTruncated) btn.classList.remove('hidden');
-
-    const toggle = () => {
-      const expanded = p.classList.toggle('clamp-none');
-      btn.textContent = expanded ? '閉じる' : '続きを読む';
-      if (!expanded && !isTruncated) btn.classList.add('hidden');
-    };
-    p.addEventListener('click', toggle);
-    btn.addEventListener('click', toggle);
-  });
-
-  // タグをタップして検索欄に反映
-  list.querySelectorAll('.tag-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const searchInput = document.getElementById('searchInput');
-      searchInput.value = btn.dataset.tag;
-      applySearch();
-      searchInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  });
+  wireEntryInteractions(list);
 }
 
 /* カレンダー表示 */
@@ -563,19 +639,32 @@ function renderSelectedDateEntries(entriesByDate) {
     return;
   }
   container.innerHTML = entries.map((e) => entryCardHTML(e)).join('');
+  wireEntryInteractions(container);
+}
 
-  container.querySelectorAll('.entry-content').forEach((p) => {
-    const btn = p.parentElement.querySelector('[data-toggle-btn]');
-    const isTruncated = p.scrollHeight > p.clientHeight + 1;
-    if (isTruncated) btn.classList.remove('hidden');
-    const toggle = () => {
-      const expanded = p.classList.toggle('clamp-none');
-      btn.textContent = expanded ? '閉じる' : '続きを読む';
-      if (!expanded && !isTruncated) btn.classList.add('hidden');
-    };
-    p.addEventListener('click', toggle);
-    btn.addEventListener('click', toggle);
-  });
+function renderOnThisDay() {
+  const container = document.getElementById('onThisDayCard');
+  const today = new Date();
+  const matches = allEntries.filter((e) =>
+    e.dateObj && e.dateObj.getMonth() === today.getMonth() && e.dateObj.getDate() === today.getDate() && e.dateObj.getFullYear() !== today.getFullYear()
+  );
+
+  if (!matches.length) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+
+  container.classList.remove('hidden');
+  container.innerHTML = `
+    <div class="rounded-2xl p-4 border" style="background: var(--accent-soft); border-color: var(--accent);">
+      <div class="text-xs font-bold mb-3" style="color: var(--accent);">📅 過去の今日</div>
+      <div class="flex flex-col gap-3">
+        ${matches.map((e) => entryCardHTML(e)).join('')}
+      </div>
+    </div>
+  `;
+  wireEntryInteractions(container);
 }
 
 /* 分析表示 */
@@ -666,25 +755,19 @@ function renderWeekdayChart(entriesByDate) {
   }).join('');
 }
 
-function renderTagRanking() {
-  const counts = new Map();
-  for (const e of allEntries) {
-    for (const t of e.tags) counts.set(t, (counts.get(t) || 0) + 1);
-  }
-  const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  const container = document.getElementById('tagRanking');
-
+// ラベル+件数のランキングを棒グラフで描画する共通ヘルパー(タグ・キーワード・語句チェックで共用)
+function renderRankingBars(containerId, ranked, emptyMessage) {
+  const container = document.getElementById(containerId);
   if (!ranked.length) {
-    container.innerHTML = `<p class="text-sm text-center py-4" style="color: var(--text-faint2);">タグが登録されている記録がありません</p>`;
+    container.innerHTML = `<p class="text-sm text-center py-4" style="color: var(--text-faint2);">${emptyMessage}</p>`;
     return;
   }
-
   const max = ranked[0][1];
-  container.innerHTML = ranked.map(([tag, count]) => {
+  container.innerHTML = ranked.map(([label, count]) => {
     const pct = Math.max(Math.round((count / max) * 100), 3);
     return `
       <div class="flex items-center gap-2">
-        <span class="text-xs shrink-0 truncate" style="max-width: 40%; color: var(--text);">#${escapeHTML(tag)}</span>
+        <span class="text-xs shrink-0 truncate" style="max-width: 45%; color: var(--text);">${escapeHTML(label)}</span>
         <div class="flex-1 rounded-full overflow-hidden" style="background: var(--bg-elevated); height: 10px;">
           <div style="width: ${pct}%; height: 100%; background: var(--accent); border-radius: 9999px;"></div>
         </div>
@@ -692,6 +775,263 @@ function renderTagRanking() {
       </div>
     `;
   }).join('');
+}
+
+function renderTagRanking() {
+  const counts = new Map();
+  for (const e of allEntries) {
+    for (const t of e.tags) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  const ranked = Array.from(counts.entries()).map(([tag, count]) => [`#${tag}`, count]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  renderRankingBars('tagRanking', ranked, 'タグが登録されている記録がありません');
+}
+
+/* 文字数・執筆ペースの推移 */
+function getDatedEntriesAsc() {
+  return allEntries.filter((e) => e.dateObj).slice().sort((a, b) => a.dateObj - b.dateObj);
+}
+
+// values(数値の配列)を折れ線+ドットのSVGチャートとして描画する共通ヘルパー
+// diverging: true の場合はゼロを基準にプラス/マイナスを2色で塗り分ける(感情スコア用)
+function renderLineChart(containerId, values, dated, options = {}) {
+  const { diverging = false, color = 'var(--accent)', height = 90, unit = '' } = options;
+  const container = document.getElementById(containerId);
+  const rangeLabel = container.parentElement.querySelector('.chart-range-label');
+
+  if (!values.length) {
+    container.innerHTML = `<p class="text-sm text-center py-6" style="color: var(--text-faint2);">データがありません</p>`;
+    if (rangeLabel) rangeLabel.innerHTML = '';
+    return;
+  }
+
+  const width = 300;
+  const padding = 6;
+  const n = values.length;
+  const maxV = diverging ? Math.max(1, ...values.map(Math.abs)) : Math.max(1, ...values);
+  const minV = diverging ? -maxV : 0;
+  const range = (maxV - minV) || 1;
+  const xStep = n > 1 ? (width - padding * 2) / (n - 1) : 0;
+  const yFor = (v) => height - padding - ((v - minV) / range) * (height - padding * 2);
+
+  const points = values.map((v, i) => [padding + i * xStep, yFor(v)]);
+  const pathD = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const strokeColor = diverging ? 'var(--text-faint2)' : color;
+  const posColor = '#4ade80';
+  const negColor = '#f87171';
+
+  const zeroLine = diverging
+    ? `<line x1="0" y1="${yFor(0).toFixed(1)}" x2="${width}" y2="${yFor(0).toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3" />`
+    : '';
+
+  const dotsHTML = points.map(([x, y], i) => {
+    const d = dated[i];
+    const dateLabel = d ? `${d.getMonth() + 1}/${d.getDate()}` : '';
+    const dotColor = diverging ? (values[i] >= 0 ? posColor : negColor) : color;
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.2" fill="${dotColor}"><title>${dateLabel} ${values[i]}${unit}</title></circle>`;
+  }).join('');
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width:100%; height:${height}px; display:block; overflow: visible;">
+      ${zeroLine}
+      <path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+      ${dotsHTML}
+    </svg>
+  `;
+
+  if (rangeLabel) {
+    const first = dated[0];
+    const last = dated[dated.length - 1];
+    rangeLabel.innerHTML = first && last
+      ? `<span>${first.getFullYear()}/${first.getMonth() + 1}/${first.getDate()}</span><span>${last.getFullYear()}/${last.getMonth() + 1}/${last.getDate()}</span>`
+      : '';
+  }
+}
+
+function renderLengthAnalysis() {
+  const dated = getDatedEntriesAsc();
+  const recent = dated.slice(-60);
+  renderLineChart('lengthChart', recent.map((e) => e.content.length), recent.map((e) => e.dateObj), { color: 'var(--accent)', unit: '文字' });
+
+  const top = dated.slice().sort((a, b) => b.content.length - a.content.length).slice(0, 5);
+  const container = document.getElementById('topLengthList');
+  if (!top.length) {
+    container.innerHTML = `<p class="text-sm text-center py-4" style="color: var(--text-faint2);">データがありません</p>`;
+    return;
+  }
+  container.innerHTML = top.map((e) => `
+    <button class="related-entry-btn flex items-center justify-between gap-2 w-full text-left py-1.5 border-b" data-date="${ymd(e.dateObj)}" style="border-color: var(--border-soft);">
+      <span class="text-xs truncate" style="color: var(--text);">${e.dateObj.getMonth() + 1}/${e.dateObj.getDate()} ${escapeHTML(e.title || e.content.slice(0, 14))}</span>
+      <span class="text-xs font-semibold shrink-0" style="color: var(--accent);">${e.content.length}文字</span>
+    </button>
+  `).join('');
+  wireEntryInteractions(container);
+}
+
+/* 感情バイオリズム(簡易な単語辞書による推定) */
+const SENTIMENT_POSITIVE = [
+  '嬉しい', 'うれしい', '楽しい', 'たのしい', '幸せ', 'しあわせ', '良かった', 'よかった', '好き', '大好き',
+  '頑張った', 'がんばった', '順調', '快適', '感謝', 'ありがとう', '安心', '満足', '期待', '楽しみ',
+  '面白い', 'おもしろい', '最高', '達成', '成功', '笑', '愛', 'かわいい', '可愛い',
+  '元気', '充実', '心地よい', '落ち着', '癒され', '興奮', 'わくわく', 'ワクワク', '感動', 'すごい',
+];
+const SENTIMENT_NEGATIVE = [
+  '疲れた', 'つかれた', '辛い', 'つらい', '悲しい', 'かなしい', '不安', '心配', '最悪', 'ストレス',
+  '落ち込', '大変', '困った', '痛い', '怒り', '腹立', 'イライラ', '後悔', '孤独', '苦しい', 'くるしい',
+  '憂鬱', 'ゆううつ', '眠い', 'ねむい', 'だるい', '面倒', 'めんどう', '失敗', '無理', 'しんどい',
+  '泣', '嫌', 'きらい', '嫌い', '怖い', 'こわい', '寂しい', 'さびしい', '弱った',
+];
+
+function countSubstring(text, sub) {
+  let count = 0;
+  let idx = 0;
+  while (true) {
+    const found = text.indexOf(sub, idx);
+    if (found === -1) break;
+    count++;
+    idx = found + sub.length;
+  }
+  return count;
+}
+
+function scoreSentiment(text) {
+  let pos = 0;
+  let neg = 0;
+  for (const w of SENTIMENT_POSITIVE) pos += countSubstring(text, w);
+  for (const w of SENTIMENT_NEGATIVE) neg += countSubstring(text, w);
+  return pos - neg;
+}
+
+function renderSentimentChart() {
+  const dated = getDatedEntriesAsc();
+  const recent = dated.slice(-60);
+  const scores = recent.map((e) => scoreSentiment(`${e.title}${e.content}`));
+  renderLineChart('sentimentChart', scores, recent.map((e) => e.dateObj), { diverging: true, unit: 'pt' });
+}
+
+/* 頻出キーワード(簡易版: 漢字・カタカナ・英数字の連続をキーワード候補として抽出) */
+const KEYWORD_STOPWORDS = new Set([
+  'こと', 'もの', 'これ', 'それ', 'あれ', 'ここ', 'そこ', 'あそこ', 'ため', 'よう', 'とき', '自分',
+  '今日', '昨日', '明日', '今', '私', '僕', '的', '化', '性', '感', '様', '中', '時', '日', '分',
+  '事', '人', '方', '後', '前', '思っ', '思う', '感じ', '気', '本当', '少し', '結構', '普通',
+]);
+
+function extractKeywordTokens(text) {
+  const matches = text.match(/[一-龠々〆ヵヶ]+|[ァ-ヴー]+|[A-Za-zＡ-Ｚａ-ｚ0-9０-９]+/g) || [];
+  return matches.filter((t) => t.length >= 2 && !KEYWORD_STOPWORDS.has(t));
+}
+
+function rankKeywords(entries) {
+  const counts = new Map();
+  for (const e of entries) {
+    for (const tok of extractKeywordTokens(`${e.title} ${e.content}`)) {
+      counts.set(tok, (counts.get(tok) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
+}
+
+function renderKeywordRanking() {
+  const now = new Date();
+  const thisMonthEntries = allEntries.filter((e) =>
+    e.dateObj && e.dateObj.getFullYear() === now.getFullYear() && e.dateObj.getMonth() === now.getMonth()
+  );
+  renderRankingBars('keywordRankingMonth', rankKeywords(thisMonthEntries), '今月のデータがありません');
+  renderRankingBars('keywordRankingAll', rankKeywords(allEntries), 'データがありません');
+}
+
+/* 口癖・特定語句チェック */
+const PRESET_PHRASES = ['疲れた', '楽しかった', '嬉しかった', '大変', '頑張った', '不安', 'ありがとう', '悲しい', 'ストレス', '幸せ'];
+
+function countPhraseOccurrences(phrase) {
+  if (!phrase) return 0;
+  let total = 0;
+  for (const e of allEntries) {
+    total += countSubstring(`${e.title}${e.content}`, phrase);
+  }
+  return total;
+}
+
+function renderPhraseRanking() {
+  const ranked = PRESET_PHRASES.map((p) => [p, countPhraseOccurrences(p)]).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]);
+  renderRankingBars('phraseRanking', ranked, 'まだ検出された語句がありません');
+}
+
+/* 執筆ヒートマップ(直近53週) */
+function renderHeatmap(entriesByDate) {
+  const container = document.getElementById('heatmapGrid');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = new Date(today);
+  start.setDate(start.getDate() - 370);
+  start.setDate(start.getDate() - start.getDay());
+
+  const days = [];
+  const cursor = new Date(start);
+  while (cursor <= today || days.length % 7 !== 0) {
+    days.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const weeks = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+
+  const countFor = (d) => (entriesByDate.get(ymd(d)) || []).length;
+  const maxCount = Math.max(1, ...days.map(countFor));
+
+  const levelColor = (count) => {
+    if (count <= 0) return 'var(--bg-elevated)';
+    const ratio = count / maxCount;
+    if (ratio > 0.75) return 'var(--accent)';
+    if (ratio > 0.5) return 'rgba(215,162,95,0.65)';
+    if (ratio > 0.25) return 'rgba(215,162,95,0.4)';
+    return 'rgba(215,162,95,0.2)';
+  };
+
+  let lastMonth = -1;
+  const monthLabels = weeks.map((week) => {
+    const first = week[0];
+    if (first.getMonth() !== lastMonth) {
+      lastMonth = first.getMonth();
+      return `${first.getMonth() + 1}月`;
+    }
+    return '';
+  });
+
+  container.innerHTML = `
+    <div style="overflow-x: auto; padding-bottom: 4px;">
+      <div style="display: inline-flex; flex-direction: column; gap: 3px;">
+        <div style="display:flex; gap:3px; padding-left: 20px;">
+          ${weeks.map((_, i) => `<div style="width:11px; font-size:9px; color: var(--text-faint2); flex-shrink:0; white-space:nowrap;">${monthLabels[i]}</div>`).join('')}
+        </div>
+        <div style="display:flex; gap:3px;">
+          <div style="display:flex; flex-direction:column; gap:3px; width:17px; flex-shrink:0;">
+            ${WEEKDAYS.map((w, i) => `<div style="height:11px; font-size:9px; line-height:11px; color: var(--text-faint2);">${(i === 1 || i === 3 || i === 5) ? w : ''}</div>`).join('')}
+          </div>
+          ${weeks.map((week) => `
+            <div style="display:flex; flex-direction:column; gap:3px; flex-shrink:0;">
+              ${week.map((d) => {
+                const inRange = d <= today;
+                const count = countFor(d);
+                const key = ymd(d);
+                return `<div class="heatmap-cell" data-date="${key}" title="${d.getMonth() + 1}/${d.getDate()}: ${count}件" style="width:11px; height:11px; border-radius:2px; background:${inRange ? levelColor(count) : 'transparent'}; cursor:${count > 0 ? 'pointer' : 'default'};"></div>`;
+              }).join('')}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.querySelectorAll('.heatmap-cell').forEach((cell) => {
+    cell.addEventListener('click', () => {
+      const key = cell.dataset.date;
+      if (!entriesByDate.has(key)) return;
+      selectedDate = parseYMD(key);
+      calendarViewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      setActiveView('calendar');
+    });
+  });
 }
 
 function renderAnalysis() {
@@ -705,9 +1045,14 @@ function renderAnalysis() {
     statTileHTML('最長連続記録', `${longest}日`),
   ].join('');
 
+  renderHeatmap(entriesByDate);
   renderMonthlyChart();
   renderWeekdayChart(entriesByDate);
+  renderLengthAnalysis();
+  renderSentimentChart();
   renderTagRanking();
+  renderKeywordRanking();
+  renderPhraseRanking();
 }
 
 function applySearch() {
@@ -761,6 +1106,7 @@ async function load() {
     allEntries = rows;
     document.getElementById('loadingState').classList.add('hidden');
     applySearch();
+    renderOnThisDay();
     renderCalendar();
     renderAnalysis();
   } catch (err) {
@@ -800,6 +1146,21 @@ document.getElementById('calTodayBtn').addEventListener('click', () => {
   calendarViewDate = new Date(today.getFullYear(), today.getMonth(), 1);
   selectedDate = today;
   renderCalendar();
+});
+
+document.getElementById('phraseSearchBtn').addEventListener('click', () => {
+  const input = document.getElementById('phraseSearchInput');
+  const phrase = input.value.trim();
+  const result = document.getElementById('phraseSearchResult');
+  if (!phrase) {
+    result.textContent = '';
+    return;
+  }
+  const count = countPhraseOccurrences(phrase);
+  result.textContent = `「${phrase}」は ${count} 回登場しています`;
+});
+document.getElementById('phraseSearchInput').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') document.getElementById('phraseSearchBtn').click();
 });
 
 /* 左右スワイプでリスト/カレンダーを切り替え */
