@@ -146,6 +146,15 @@
 
   <!-- リスト表示 -->
   <div id="listView">
+    <!-- 下に引っ張って更新 -->
+    <div id="pullRefreshIndicator" class="flex items-center justify-center gap-2 overflow-hidden" style="height: 0px;">
+      <svg id="pullRefreshSpinner" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" style="color: var(--text-faint2);">
+        <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle>
+        <path class="opacity-80" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+      </svg>
+      <span id="pullRefreshText" class="text-xs" style="color: var(--text-faint2);">引っ張って更新</span>
+    </div>
+
     <!-- 過去の今日 -->
     <div id="onThisDayCard" class="hidden mb-4"></div>
 
@@ -1198,6 +1207,78 @@ document.getElementById('phraseSearchInput').addEventListener('keydown', (ev) =>
       setActiveView(VIEWS[nextIndex]);
     }
   }, { passive: true });
+})();
+
+/* リスト表示を下に引っ張って更新 */
+(() => {
+  const PULL_THRESHOLD = 64;
+  const PULL_MAX = 90;
+  const mainContent = document.getElementById('mainContent');
+  const indicator = document.getElementById('pullRefreshIndicator');
+  const spinner = document.getElementById('pullRefreshSpinner');
+  const text = document.getElementById('pullRefreshText');
+
+  let startY = 0;
+  let pulling = false;
+  let isRefreshing = false;
+
+  const setIndicatorHeight = (px) => {
+    indicator.style.height = `${px}px`;
+  };
+
+  const resetIndicator = () => {
+    pulling = false;
+    setIndicatorHeight(0);
+    spinner.classList.remove('animate-spin');
+    spinner.style.transform = '';
+    text.textContent = '引っ張って更新';
+  };
+
+  const startRefresh = async () => {
+    isRefreshing = true;
+    setIndicatorHeight(56);
+    spinner.classList.add('animate-spin');
+    spinner.style.transform = '';
+    text.textContent = '更新中…';
+    await load();
+    isRefreshing = false;
+    resetIndicator();
+  };
+
+  mainContent.addEventListener('touchstart', (ev) => {
+    if (currentView !== 'list' || isRefreshing || ev.touches.length !== 1) {
+      pulling = false;
+      return;
+    }
+    const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    pulling = scrollTop <= 0;
+    startY = ev.touches[0].clientY;
+  }, { passive: true });
+
+  mainContent.addEventListener('touchmove', (ev) => {
+    if (!pulling || isRefreshing) return;
+    const deltaY = ev.touches[0].clientY - startY;
+    if (deltaY <= 0) {
+      resetIndicator();
+      return;
+    }
+    ev.preventDefault();
+    const distance = Math.min(deltaY * 0.4, PULL_MAX);
+    setIndicatorHeight(distance);
+    const ready = distance >= PULL_THRESHOLD;
+    spinner.style.transform = `rotate(${Math.min(distance / PULL_THRESHOLD, 1) * 180}deg)`;
+    text.textContent = ready ? '離して更新' : '引っ張って更新';
+  }, { passive: false });
+
+  mainContent.addEventListener('touchend', () => {
+    if (!pulling || isRefreshing) return;
+    const currentHeight = parseFloat(indicator.style.height) || 0;
+    if (currentHeight >= PULL_THRESHOLD) {
+      startRefresh();
+    } else {
+      resetIndicator();
+    }
+  });
 })();
 
 setActiveView('list');
