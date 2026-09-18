@@ -660,7 +660,15 @@ function renderOnThisDay() {
     <div class="rounded-2xl p-4 border" style="background: var(--accent-soft); border-color: var(--accent);">
       <div class="text-xs font-bold mb-3" style="color: var(--accent);">📅 過去の今日</div>
       <div class="flex flex-col gap-3">
-        ${matches.map((e) => entryCardHTML(e)).join('')}
+        ${matches.map((e) => {
+          const yearsAgo = today.getFullYear() - e.dateObj.getFullYear();
+          return `
+            <div>
+              <div class="text-[11px] font-bold mb-1.5 px-1" style="color: var(--accent);">${e.dateObj.getFullYear()}年(${yearsAgo}年前)</div>
+              ${entryCardHTML(e)}
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
   `;
